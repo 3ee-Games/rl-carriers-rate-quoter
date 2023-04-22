@@ -1,57 +1,91 @@
-from suds.client import Client
-from suds.plugin import MessagePlugin
+import asyncio
+import httpx
+
+# Replace this with your API key
+API_KEY = ""
 
 
-class LogPlugin(MessagePlugin):
-    def sending(self, context):
-        print(str(context.envelope))
+async def main():
+    rate_quote = await post_rate_quote(
 
-    def received(self, context):
-        print(str(context.reply))
-
-
-url = "http://api.rlcarriers.com/1.0.2/RateQuoteService.asmx?WSDL"
-key = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-client = Client(url, plugins=[LogPlugin()])
-
-request = client.factory.create('RateQuoteRequest')
-
-request.CustomerData = 'Ryan Tester'
-request.QuoteType = 'Domestic'
-request.CODAmount = 0.00
-
-service_point_origin = client.factory.create('ServicePoint')
-service_point_origin.City = 'Burns'
-service_point_origin.StateOrProvince = 'TN'
-service_point_origin.ZipOrPostalCode = '37029'
-service_point_origin.CountryCode = 'USA'
-
-service_point_dest = client.factory.create('ServicePoint')
-service_point_dest.City = 'Tampa'
-service_point_dest.StateOrProvince = 'FL'
-service_point_dest.ZipOrPostalCode = '33635'
-service_point_dest.CountryCode = 'USA'
-
-request.Origin = service_point_origin
-request.Destination = service_point_dest
-
-item = {
-    'Class': 55.0,
-    'Weight': 200.0
-}
-
-items = client.factory.create('ArrayOfItem')
-items.Item = [item]
-request.Items = items
-
-request.DeclaredValue = 1.0
-request.OverDimensionPcs = 0
-
-accessorials = client.factory.create('ArrayOfAccessorial')
-accessorial = None #ResidentialDelivery
-accessorials.Accessorial = [accessorial]
-request.Accessorials = accessorials
+        {
+            "RateQuote": {
+                "CODAmount": 0,
+                "Origin": {
+                    "City": "Tampa",
+                    "StateOrProvince": "FL",
+                    "ZipOrPostalCode": "34655",
+                    "CountryCode": "USA"
+                },
+                "Destination": {
+                    "City": "Dayton",
+                    "StateOrProvince": "OH",
+                    "ZipOrPostalCode": "45414",
+                    "CountryCode": "USA"
+                },
+                "Items": [
+                    {
+                        "Width": 4,
+                        "Height": 4,
+                        "Length": 4,
+                        "Class": "65",
+                        "Weight": 114
+                    }
+                ]
+            }
+        }
+    )
+    print(rate_quote)
 
 
-result = client.service.GetRateQuote(key, request)
-print result
+async def get_pallet_types():
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.rlc.com/RateQuote/GetPalletTypes",
+            headers={"apiKey": f"{API_KEY}"},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def get_pallet_types_by_points(origin_city, origin_zip, destination_city, destination_zip):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.rlc.com/RateQuote/GetPalletTypesByPoints",
+            headers={"apiKey": f"{API_KEY}"},
+            params={
+                "originCity": origin_city,
+                "originZip": origin_zip,
+                "destinationCity": destination_city,
+                "destinationZip": destination_zip,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def get_rate_quote(quote_number):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.rlc.com/RateQuote",
+            headers={"apiKey": f"{API_KEY}"},
+            params={"quoteNumber": quote_number},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def post_rate_quote(rate_quote_request):
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.rlc.com/RateQuote",
+            headers={"apiKey": f"{API_KEY}",
+                     "Content-Type": "application/json"},
+            json=rate_quote_request,
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
